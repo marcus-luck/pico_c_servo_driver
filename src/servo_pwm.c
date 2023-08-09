@@ -111,35 +111,75 @@ void print_cmd(char s[], int len) {
    printf("\n");
 }
 
+#define MAX_UART_MESSAGE_LEN 4
+#define UART_END 0x0A
+
+void read_cmd(char s[], char end) {
+   for (int i=0; i<MAX_UART_MESSAGE_LEN; i++) {
+      char next = uart_getc(UART_ID);
+      if (next == UART_END) {
+         break;
+      }
+      s[i] = next;
+   }
+}
+
+void pwm_output_off(int pwm_pin) {
+   uint slice_num = pwm_gpio_to_slice_num(pwm_pin);
+   pwm_set_gpio_level(pwm_pin, 0);
+   // pwm_set_enabled(slice_num, false);
+}
+
+void pwm_output_on(int pwm_pin) {
+   uint slice_num = pwm_gpio_to_slice_num(pwm_pin);
+   pwm_set_gpio_level(pwm_pin, pwm_val);
+   // pwm_set_enabled(slice_num, true);
+}
 
 // RX interrupt handler
 void on_uart_rx() {
    static int chars_rxed = 0;
    char cmd[] = {0,0,0,0};
+
     while (uart_is_readable(UART_ID)) {
-      while (chars_rxed < 4) {
-         cmd[chars_rxed] = uart_getc(UART_ID);
-         chars_rxed++;
-      }
-      chars_rxed=0;
+      read_cmd(cmd, UART_END);
       print_cmd(cmd, sizeof(cmd));
+
+      // parse command
+
+      uint8_t rw = cmd[0] >> 7;
+      uint8_t cmd_type = cmd[0] & 0x7f;
+      uint8_t addr = cmd[1];
 
       uint16_t high = (int)cmd[2] << 8;
       uint16_t low = (int)cmd[3];
       uint16_t val = high + low;
-      printf("cdiv: (%i) %i + %i = %i\n", (int)cmd[2], high, low, val);
-      xQueueSendToFront(xQueue, &val, 0);
+      printf("rw: %i, cmd: %i, addr: %i, val: %i\n", rw, cmd_type, addr, val);
+      if (cmd_type == 0) {
+         printf("setting cdiv\n");
+         xQueueSendToFront(xQueue, &val, 0);
+      } else if (cmd_type == 1) {
+         int pin = val & 0xF;
+         printf("turning on %i\n", pin);
+         pwm_output_on(pin);
+      } else if (cmd_type == 2) {
+         int pin = val & 0xF;
+         printf("turning off %i\n", pin);
+         pwm_output_off(pin);
+      }
+      // xQueueSendToFront(xQueue, &val, 0);
     }
 }
 
 void main() {
    // Initialize the Queue
-
    xQueue =  xQueueCreate( 1, sizeof( uint16_t ) );
 
    // Set up our UART with the required speed.
    stdio_init_all();
    printf("Hello, world!\n");
+
+
    uart_init(UART_ID, BAUD_RATE);
    // Set the TX and RX pins by using the function select on the GPIO
    // Set datasheet for more information on function select
@@ -165,12 +205,14 @@ void main() {
    gpio_init(LED_PIN);
    gpio_set_dir(LED_PIN, GPIO_OUT);
 
+   int pin_bank[] = {PWM_PIN, PWM_PIN2};
+
    // Setup pin for PWM static
    // gpio_init(PWM_PIN2);
-   pwm_output_init(PWM_PIN, 4.f, 32000);
+   pwm_output_init(pin_bank[0], 4.f, 32000);
 
    // Setup pins for PWM
-   pwm_output_init(PWM_PIN2, 4.f, 32000);
+   pwm_output_init(pin_bank[1], 4.f, 32000);
    // Create tasks
    xTaskCreate(vBlinkTask, "Blink Task", 128, NULL, 2, NULL);
    xTaskCreate(vPWMTask, "PWM Task", 128, NULL, 1, NULL);
