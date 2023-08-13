@@ -19,14 +19,6 @@ void read_cmd(char s[], char end) {
 }
 
 
-
-void print_cmd(char s[], int len) {
-   for (int i=0; i<len; i++) {
-      printf("%i:", (int)s[i]);
-   }
-   printf("\n");
-}
-
 // RX interrupt handler
 void on_uart_rx() {
    static int chars_rxed = 0;
@@ -34,7 +26,6 @@ void on_uart_rx() {
 
     while (uart_is_readable(UART_ID)) {
         read_cmd(cmd, UART_END);
-        print_cmd(cmd, sizeof(cmd));
 
         // parse command
 
