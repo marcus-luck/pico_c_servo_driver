@@ -109,6 +109,7 @@ void vParseCommandTask() {
 void main() {
    // Initialize the Queue
    pwmQueue =  xQueueCreate( 1, sizeof( uint16_t ) );
+   cmd_queue_init();
    // Set up our UART with the required speed.
    stdio_init_all();
    printf("#### Starting program ####\n");
