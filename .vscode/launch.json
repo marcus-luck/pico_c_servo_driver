@@ -29,6 +29,7 @@
             "searchDir": ["/home/marcus/src/openocd/tcl"],
             "openOCDLaunchCommands": ["adapter speed 5000"],
             "showDevDebugOutput": "raw",
+            "liveWatch": true,
         }
     ]
 }
