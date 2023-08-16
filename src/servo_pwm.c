@@ -24,10 +24,23 @@
 #define PWM_PIN1     3
 #define PWM_PIN2     4
 #define PWM_PIN3     5
+#define PWM_PIN4     6
+#define PWM_PIN5     7
+#define PWM_PIN6     10
+#define PWM_PIN7     11
 
-int LED_BANK[] = {PWM_PIN0, PWM_PIN1, PWM_PIN2, PWM_PIN3};
+int LED_BANK[] = {
+   PWM_PIN0,
+   PWM_PIN1,
+   PWM_PIN2,
+   PWM_PIN3,
+   PWM_PIN4,
+   PWM_PIN5,
+   PWM_PIN6,
+   PWM_PIN7
+   };
 
-#define LEN_LED_BANK 4
+#define LEN_LED_BANK 8
 
 
 
@@ -110,8 +123,6 @@ void pwm_output_init(int pwm_pin, float clkdiv, int level) {
    pwm_config config = pwm_get_default_config();
    pwm_config_set_clkdiv(&config, clkdiv);
    pwm_init(slice_num, &config, true);
-   // pwm_set_gpio_level(pwm_pin, level);
-   // pwm_set_enabled(slice_num, true);
 }
 
 
