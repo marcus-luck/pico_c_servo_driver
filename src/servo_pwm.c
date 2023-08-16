@@ -36,24 +36,71 @@ QueueHandle_t pwmQueue;
 uint16_t cdiv = 12000;
 uint16_t pwm_val = 12000;
 
+void vApplicationMallocFailedHook( void )
+{
+    /* Called if a call to pvPortMalloc() fails because there is insufficient
+    free memory available in the FreeRTOS heap.  pvPortMalloc() is called
+    internally by FreeRTOS API functions that create tasks, queues, software
+    timers, and semaphores.  The size of the FreeRTOS heap is set by the
+    configTOTAL_HEAP_SIZE configuration constant in FreeRTOSConfig.h. */
+
+    /* Force an assert. */
+    configASSERT( ( volatile void * ) NULL );
+}
+/*-----------------------------------------------------------*/
+
+void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName )
+{
+    ( void ) pcTaskName;
+    ( void ) pxTask;
+
+    /* Run time stack overflow checking is performed if
+    configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook
+    function is called if a stack overflow is detected. */
+
+    /* Force an assert. */
+    configASSERT( ( volatile void * ) NULL );
+}
+/*-----------------------------------------------------------*/
+
+void vApplicationIdleHook( void )
+{
+    volatile size_t xFreeHeapSpace;
+
+    /* This is just a trivial example of an idle hook.  It is called on each
+    cycle of the idle task.  It must *NOT* attempt to block.  In this case the
+    idle task just queries the amount of FreeRTOS heap that remains.  See the
+    memory management section on the http://www.FreeRTOS.org web site for memory
+    management options.  If there is a lot of heap memory free then the
+    configTOTAL_HEAP_SIZE value in FreeRTOSConfig.h can be reduced to free up
+    RAM. */
+    xFreeHeapSpace = xPortGetFreeHeapSize();
+
+    /* Remove compiler warning about xFreeHeapSpace being set but never used. */
+    ( void ) xFreeHeapSpace;
+}
+/*-----------------------------------------------------------*/
+
+
+
 
 void vRunPWMTask() {
-   // for (int i=0; i<LEN_LED_BANK; i++) {
-   //    pwm_output_init(LED_BANK[i], 4.f, 32000);
-   // }
+   uint16_t ledctrl[2];
    for (;;) {
-      
-      if (xQueueReceive(pwmQueue, (void *) &pwm_val, 10) == pdTRUE) {
+      if (xQueueReceive(pwmQueue, &ledctrl, portMAX_DELAY) == pdTRUE) {
+         uint16_t led_id = ledctrl[0];
+         uint16_t pwm_ = ledctrl[1];
          printf("Received: %d\n", pwm_val);
-         for (int i=0; i<LEN_LED_BANK; i++) {
-            pwm_set_gpio_level(LED_BANK[i], pwm_val);
+         if (led_id == 0xFF) {
+            for (int i=0; i<LEN_LED_BANK; i++) {
+               pwm_set_gpio_level(LED_BANK[i], pwm_);
+            }
+         } else {
+            pwm_set_gpio_level(LED_BANK[led_id], pwm_);
          }
          printf("Updated Duty cycles\n");
       }
-      vTaskDelay(10);  
    }
-   // while (1)
-   //    tight_loop_contents();
 }
 
 
@@ -63,7 +110,7 @@ void pwm_output_init(int pwm_pin, float clkdiv, int level) {
    pwm_config config = pwm_get_default_config();
    pwm_config_set_clkdiv(&config, clkdiv);
    pwm_init(slice_num, &config, true);
-   pwm_set_gpio_level(pwm_pin, level);
+   // pwm_set_gpio_level(pwm_pin, level);
    // pwm_set_enabled(slice_num, true);
 }
 
@@ -71,26 +118,37 @@ void pwm_output_init(int pwm_pin, float clkdiv, int level) {
 void pwm_output_off(uint8_t pwm_pin) {
    uint slice_num = pwm_gpio_to_slice_num(pwm_pin);
    pwm_set_gpio_level(pwm_pin, 0);
-   // pwm_set_enabled(slice_num, false);
+   // Set GPIO_BANK_enable to 0
 }
 
 void pwm_output_on(uint8_t pwm_pin) {
    uint slice_num = pwm_gpio_to_slice_num(pwm_pin);
    pwm_set_gpio_level(pwm_pin, pwm_val);
-   // pwm_set_enabled(slice_num, true);
+   // Set GPIO_BANK_enable to 1
 }
 
 void vParseCommandTask() {
-   command_frame_t cmdbuff;
-   uint8_t cmd_type;
-   uint16_t val;
+   char cmd[4];
+
    for (;;) {
-      if (cmd_queue_read(&cmdbuff) == pdTRUE) {
-         cmd_type = cmdbuff.cmd_type;
-         val = cmdbuff.val;
+      if (cmd_queue_read(&cmd) == pdTRUE) {
+
+         // Parse the command
+
+         _Bool rw = cmd[0] >> 7;
+         uint8_t cmd_type = cmd[0] & 0x7f;
+         uint8_t addr = cmd[1];
+
+         uint16_t high = (int)cmd[2] << 8;
+         uint16_t low = (int)cmd[3];
+         uint16_t val = high + low;
+         // printf("rw: %i, cmd: %i, addr: %i, val: %i\n", rw, cmd_type, addr, val);
+
          if (cmd_type == 0) {
             printf("setting cdiv\n");
-            xQueueSendToFront(pwmQueue, val, 0);
+            uint16_t ledctrl[2] = {(uint16_t)addr, val};
+            xQueueSendToFront(pwmQueue, &ledctrl, 0);
+            printf("cdiv set\n");
          } else if (cmd_type == 1) {
             uint8_t pin = val & 0xF;
             printf("turning on %i\n", pin);
@@ -101,14 +159,12 @@ void vParseCommandTask() {
             pwm_output_off(pin);
          }
       }
-      vTaskDelay(10);  
    }
-      // xQueueSendToFront(xQueue, &val, 0);
 }
 
 void main() {
    // Initialize the Queue
-   pwmQueue =  xQueueCreate( 1, sizeof( uint16_t ) );
+   pwmQueue =  xQueueCreate( 2, sizeof( uint16_t[2] ) );
    cmd_queue_init();
    // Set up our UART with the required speed.
    stdio_init_all();
@@ -123,14 +179,16 @@ void main() {
       gpio_set_dir(LED_BANK[i], GPIO_OUT);
       pwm_output_init(LED_BANK[i], 4.f, 32000);
    }
-
+   for (int i=0; i<LEN_LED_BANK; i++) {
+      pwm_set_gpio_level(LED_BANK[i], 32000);
+   }
    // Create tasks
    printf("Creating tasks\n");
    // xTaskCreate(vBlinkTask, "Blink Task", 128, NULL, 2, NULL);
    // xTaskCreate(vPWMTask, "PWM Task", 128, NULL, 1, NULL);
 
-   xTaskCreate(vRunPWMTask, "Run PWM Task", 128, NULL, 3, NULL);
-   xTaskCreate(vParseCommandTask, "Parser Task", 128, NULL, 4, NULL);
+   xTaskCreate(vRunPWMTask, "Run PWM Task", 512, NULL, 5, NULL);
+   xTaskCreate(vParseCommandTask, "Parser Task", 512, NULL, 4, NULL);
 
    vTaskStartScheduler();
    // The code will neverreach this point unless something is wrong
