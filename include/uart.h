@@ -1,3 +1,6 @@
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "pico/stdlib.h"
 
 #define UART_TX_PIN             8
 #define UART_RX_PIN             9
@@ -19,3 +22,10 @@ typedef struct CommandFrame {
    uint8_t addr;
    uint16_t val;
 } command_frame_t;
+
+// Define the functions
+void init_uart();
+void cmd_queue_init();
+BaseType_t cmd_queue_send(void * cmd);
+BaseType_t cmd_queue_read(void * cmd);
+BaseType_t cmd_queue_not_empty();

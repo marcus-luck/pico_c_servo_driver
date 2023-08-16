@@ -1,16 +1,17 @@
 #include <stdio.h>
-
 #include "pico/stdlib.h"
-#include "uart.h"
 
 #include "FreeRTOS.h"
 #include "queue.h"
 
-#define QUEUE_LENGTH 1
-#define QUEUE_ITEM_SIZE sizeof(command_frame_t)
-#define QUEUE_TIMEOUT 10
+#include "uart.h"
 
-QueueHandle_t cmd_queue;
+
+#define QUEUE_LENGTH 2
+#define QUEUE_ITEM_SIZE sizeof(char[4])
+#define QUEUE_TIMEOUT (TickType_t) 1
+
+static QueueHandle_t cmd_queue = NULL;
 
 // Setup command queue
 void cmd_queue_init() {
@@ -18,13 +19,35 @@ void cmd_queue_init() {
 }
 
 // Send command to queue
-void cmd_queue_send(command_frame_t * cmd) {
-   xQueueSendToBack(cmd_queue, (void *) &cmd, QUEUE_TIMEOUT);
+BaseType_t cmd_queue_send(void * cmd) {
+   // printf("Sending command %d.\n", cmd);
+   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+   BaseType_t status = xQueueSendToFrontFromISR(
+      cmd_queue, 
+      cmd,
+      // QUEUE_TIMEOUT
+      xHigherPriorityTaskWoken
+   );
+   return status;
 }
 
 // Read command from queue
-BaseType_t cmd_queue_read(command_frame_t * cmd) {
-    return xQueueReceive(cmd_queue, (void *) &cmd, QUEUE_TIMEOUT);
+BaseType_t cmd_queue_read(void * cmd) {
+		/* Wait until something arrives in the queue - this task will block
+		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
+		FreeRTOSConfig.h. */
+    BaseType_t status = xQueueReceive(
+      cmd_queue,
+      cmd,
+      portMAX_DELAY
+      // xHigherPriorityTaskWoken
+   );
+   return status;
+}
+
+// Check if queue is empty
+BaseType_t cmd_queue_not_empty() {
+   return (_Bool) uxQueueMessagesWaiting(cmd_queue) != 0;
 }
 
 void read_cmd(char s[], char end) {
@@ -40,34 +63,12 @@ void read_cmd(char s[], char end) {
 
 // RX interrupt handler
 void on_uart_rx() {
-   static int chars_rxed = 0;
-   char cmd[] = {0,0,0,0};
-   while (1) {
-        while (uart_is_readable(UART_ID)) {
-            printf("UART Receiving.\n");
+   char cmd[4];
+      while (uart_is_readable(UART_ID)) {
             read_cmd(cmd, UART_END);
 
-            // parse command
-
-            _Bool rw = cmd[0] >> 7;
-            uint8_t cmd_type = cmd[0] & 0x7f;
-            uint8_t addr = cmd[1];
-
-            uint16_t high = (int)cmd[2] << 8;
-            uint16_t low = (int)cmd[3];
-            uint16_t val = high + low;
-            printf("rw: %i, cmd: %i, addr: %i, val: %i\n", rw, cmd_type, addr, val);
-
-            command_frame_t cnd;
-            cnd.rw = rw;
-            cnd.cmd_type = cmd_type;
-            cnd.addr = addr;
-            cnd.val = val;
-
-            cmd_queue_send(&cnd);
-    }
-    vTaskDelay(10);
-   }
+            cmd_queue_send(&cmd);
+      }
 }
 
 void init_uart() {
