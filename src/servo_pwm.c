@@ -29,6 +29,7 @@
 #define PWM_PIN6     10
 #define PWM_PIN7     11
 
+#define LEN_LED_BANK 8
 int LED_BANK[] = {
    PWM_PIN0,
    PWM_PIN1,
@@ -40,13 +41,9 @@ int LED_BANK[] = {
    PWM_PIN7
    };
 
-#define LEN_LED_BANK 8
-
 
 
 QueueHandle_t pwmQueue;
-
-uint16_t cdiv = 12000;
 uint16_t pwm_val = 12000;
 
 void vApplicationMallocFailedHook( void )
@@ -88,7 +85,7 @@ void vApplicationIdleHook( void )
     configTOTAL_HEAP_SIZE value in FreeRTOSConfig.h can be reduced to free up
     RAM. */
     xFreeHeapSpace = xPortGetFreeHeapSize();
-
+   printf("FreeHeap: %i\n", xFreeHeapSpace);
     /* Remove compiler warning about xFreeHeapSpace being set but never used. */
     ( void ) xFreeHeapSpace;
 }
@@ -102,16 +99,14 @@ void vRunPWMTask() {
    for (;;) {
       if (xQueueReceive(pwmQueue, &ledctrl, portMAX_DELAY) == pdTRUE) {
          uint16_t led_id = ledctrl[0];
-         uint16_t pwm_ = ledctrl[1];
-         printf("Received: %d\n", pwm_val);
+         pwm_val = ledctrl[1];
          if (led_id == 0xFF) {
             for (int i=0; i<LEN_LED_BANK; i++) {
-               pwm_set_gpio_level(LED_BANK[i], pwm_);
+               pwm_set_gpio_level(LED_BANK[i], pwm_val);
             }
          } else {
-            pwm_set_gpio_level(LED_BANK[led_id], pwm_);
+            pwm_set_gpio_level(LED_BANK[led_id], pwm_val);
          }
-         printf("Updated Duty cycles\n");
       }
    }
 }
@@ -156,17 +151,13 @@ void vParseCommandTask() {
          // printf("rw: %i, cmd: %i, addr: %i, val: %i\n", rw, cmd_type, addr, val);
 
          if (cmd_type == 0) {
-            printf("setting cdiv\n");
             uint16_t ledctrl[2] = {(uint16_t)addr, val};
             xQueueSendToFront(pwmQueue, &ledctrl, 0);
-            printf("cdiv set\n");
          } else if (cmd_type == 1) {
             uint8_t pin = val & 0xF;
-            printf("turning on %i\n", pin);
             pwm_output_on(pin);
          } else if (cmd_type == 2) {
             uint8_t pin = val & 0xF;
-            printf("turning off %i\n", pin);
             pwm_output_off(pin);
          }
       }
@@ -198,8 +189,8 @@ void main() {
    // xTaskCreate(vBlinkTask, "Blink Task", 128, NULL, 2, NULL);
    // xTaskCreate(vPWMTask, "PWM Task", 128, NULL, 1, NULL);
 
-   xTaskCreate(vRunPWMTask, "Run PWM Task", 512, NULL, 5, NULL);
-   xTaskCreate(vParseCommandTask, "Parser Task", 512, NULL, 4, NULL);
+   xTaskCreate(vRunPWMTask, "Run PWM Task", 256, NULL, 5, NULL);
+   xTaskCreate(vParseCommandTask, "Parser Task", 256, NULL, 4, NULL);
 
    vTaskStartScheduler();
    // The code will neverreach this point unless something is wrong
