@@ -4,15 +4,17 @@
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
-#define configUSE_TICKLESS_IDLE                 0
-#define configCPU_CLOCK_HZ                      133000000/* Looking at runtime.c in the RPI 2040 SDK, the sys clock frequency is 125MHz */
-#define configSYSTICK_CLOCK_HZ                  1000000  /* This is always 1MHz on ARM I think.... */
-#define configTICK_RATE_HZ                      1000      /* I personally like 1kHz so you can do 1 ms sleeps */
-#define configMAX_PRIORITIES                    5
-#define configMINIMAL_STACK_SIZE                128      /* you might want to increase this, especially if you do any floating point printf  *YIKES* */
+#define configUSE_TICKLESS_IDLE                 1 /* Does nothing during idle, saves energy */
+#define configCPU_CLOCK_HZ                      ( ( TickType_t ) 133000000 ) /* Looking at runtime.c in the RPI 2040 SDK, the sys clock frequency is 125MHz */
+#define configSYSTICK_CLOCK_HZ                  ( ( TickType_t ) 1000000 ) /* This is always 1MHz on ARM I think.... */
+#define configTICK_RATE_HZ                      ( ( TickType_t ) 1000 )      /* I personally like 1kHz so you can do 1 ms sleeps */
+#define configMAX_PRIORITIES                    32
+#define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256      /* you might want to increase this, especially if you do any floating point printf  *YIKES* */
 #define configMAX_TASK_NAME_LEN                 16
 #define configUSE_16_BIT_TICKS                  0
+
 #define configIDLE_SHOULD_YIELD                 1
+
 #define configUSE_TASK_NOTIFICATIONS            1
 #define configTASK_NOTIFICATION_ARRAY_ENTRIES   3
 #define configUSE_MUTEXES                       0
@@ -35,10 +37,10 @@
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configUSE_IDLE_HOOK                     0
+#define configUSE_IDLE_HOOK                     0 /* Enables the vApplicationIdleHook */
 #define configUSE_TICK_HOOK                     0
 #define configCHECK_FOR_STACK_OVERFLOW          0
-#define configUSE_MALLOC_FAILED_HOOK            0
+#define configUSE_MALLOC_FAILED_HOOK            0 /* vApplicationMallocFailedHook */
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
@@ -57,12 +59,19 @@
 #define configTIMER_TASK_STACK_DEPTH            configMINIMAL_STACK_SIZE
 
 /* Interrupt nesting behaviour configuration. */
+/*
 #define configKERNEL_INTERRUPT_PRIORITY         [dependent of processor]
 #define configMAX_SYSCALL_INTERRUPT_PRIORITY    [dependent on processor and application]
 #define configMAX_API_CALL_INTERRUPT_PRIORITY   [dependent on processor and application]
+*/
+
+/* RP2040 specific */
+#define configSUPPORT_PICO_SYNC_INTEROP         1
+#define configSUPPORT_PICO_TIME_INTEROP         1
 
 /* Define to trap errors during development. */
-//#define configASSERT( ( x ) ) assert()
+#include <assert.h>
+#define configASSERT( x )                       assert(x)
 
 /* FreeRTOS MPU specific definitions. */
 #define configINCLUDE_APPLICATION_DEFINED_PRIVILEGED_FUNCTIONS 0
