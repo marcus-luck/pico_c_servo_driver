@@ -16,6 +16,7 @@
 #include "hardware/irq.h"
 #include "hardware/pwm.h"
 #include "uart.h"
+#include "control_register.h"
 
 #define argh GPIO_FUNC_UART
 
@@ -98,8 +99,9 @@ void vRunPWMTask() {
    uint16_t ledctrl[2];
    for (;;) {
       if (xQueueReceive(pwmQueue, &ledctrl, portMAX_DELAY) == pdTRUE) {
-         uint16_t led_id = ledctrl[0];
-         pwm_val = ledctrl[1];
+         uint16_t led_id = ledctrl[0] + 1;
+         // pwm_val = ledctrl[1];
+         read_ctrl_register(led_id, pwm_val);
          if (led_id == 0xFF) {
             for (int i=0; i<LEN_LED_BANK; i++) {
                pwm_set_gpio_level(LED_BANK[i], pwm_val);
@@ -152,6 +154,8 @@ void vParseCommandTask() {
 
          if (cmd_type == 0) {
             uint16_t ledctrl[2] = {(uint16_t)addr, val};
+            uint8_t lednum = 1 + addr;
+            write_ctrl_register(lednum, val);
             xQueueSendToFront(pwmQueue, &ledctrl, 0);
          } else if (cmd_type == 1) {
             uint8_t pin = val & 0xF;
