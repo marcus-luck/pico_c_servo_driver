@@ -18,13 +18,13 @@ void register_space_init(void) {
     }
 }
 
-void read_ctrl_register(uint8_t reg, uint16_t value) {
+void read_ctrl_register(uint8_t reg, uint16_t * value) {
     xSemaphoreTake(register_mutexes[reg], portMAX_DELAY);
-    value = registers[reg];
+    *value = registers[reg];
     xSemaphoreGive(register_mutexes[reg]);
 }
 
-void write_ctrl_register(uint8_t reg, uint16_t value) {
+void write_ctrl_register(uint8_t reg, uint16_t *value) {
     if (reg == ID) {
         // Handle error: ID register is read-only.
         // You could use some assert mechanism or logging here.
@@ -36,8 +36,8 @@ void write_ctrl_register(uint8_t reg, uint16_t value) {
         printf("Register address is out of range.\n");
         value = 0;
     }
-    printf("Writing %d to register %d.\n", value, reg);
+    printf("Writing %u to register %u.\n", *value, reg);
     xSemaphoreTake(register_mutexes[reg], portMAX_DELAY);
-    registers[reg] = value;
+    registers[reg] = *value;
     xSemaphoreGive(register_mutexes[reg]);
 }

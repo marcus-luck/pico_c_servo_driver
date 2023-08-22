@@ -1,7 +1,7 @@
 // register_space.h
 
-#ifndef REGISTER_SPACE_H
-#define REGISTER_SPACE_H
+#ifndef CONTROL_REGISTER_H
+#define CONTROL_REGISTER_H
 
 // #include <stdint.h>
 #include "FreeRTOS.h"
@@ -22,10 +22,8 @@ typedef enum {
     REG_MAX
 } CTRL_REGISTER_T;
 
-// #define USER_REGISTER_BASE (0x40000000)  // hypothetical base address
-
 void register_space_init(void);
-void read_ctrl_register(uint8_t reg, uint16_t value);
-void write_ctrl_register(uint8_t reg, uint16_t value);
+void read_ctrl_register(uint8_t reg, uint16_t * value);
+void write_ctrl_register(uint8_t reg, uint16_t * value);
 
-#endif // REGISTER_SPACE_H
+#endif // CONTROL_REGISTER_H
