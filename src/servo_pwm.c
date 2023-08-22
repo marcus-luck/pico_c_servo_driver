@@ -174,6 +174,7 @@ void main() {
    cmd_queue_init();
    // Set up our UART with the required speed.
    stdio_init_all();
+   register_space_init();
    printf("#### Starting program ####\n");
 
    init_uart();
