@@ -3,7 +3,7 @@
 #ifndef CONTROL_REGISTER_H
 #define CONTROL_REGISTER_H
 
-// #include <stdint.h>
+#include <stdint.h>
 #include "FreeRTOS.h"
 #include "semphr.h"
 
