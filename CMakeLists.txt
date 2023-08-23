@@ -24,6 +24,8 @@ pico_sdk_init()
 add_executable(${PROJECT_NAME} 
     src/servo_pwm.c
     src/uart.c
+    src/pwm_control.c
+    src/control_register.c
 )
 
 # Create map/bin/hex/uf2 files
