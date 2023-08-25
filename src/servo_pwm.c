@@ -42,7 +42,8 @@ int LED_BANK[] = {
    PWM_PIN7
    };
 
-
+// divider = Ceil(125000000/(4096*50))/16 = 611/16 = 38.1875
+#define CLKDIV (float)38.1875
 
 QueueHandle_t pwmQueue;
 uint16_t pwm_val = 12000;
@@ -100,8 +101,8 @@ void vRunPWMTask() {
    for (;;) {
       if (xQueueReceive(pwmQueue, &ledctrl, portMAX_DELAY) == pdTRUE) {
          uint16_t led_id = ledctrl[0] + 1;
-         // pwm_val = ledctrl[1];
-         read_ctrl_register(led_id, &pwm_val);
+         pwm_val = ledctrl[1];
+         // read_ctrl_register(led_id, &pwm_val);
          if (led_id == 0xFF) {
             for (int i=0; i<LEN_LED_BANK; i++) {
                pwm_set_gpio_level(LED_BANK[i], pwm_val);
@@ -118,6 +119,7 @@ void pwm_output_init(int pwm_pin, float clkdiv, int level) {
    gpio_set_function(pwm_pin, GPIO_FUNC_PWM);
    uint slice_num = pwm_gpio_to_slice_num(pwm_pin);
    pwm_config config = pwm_get_default_config();
+   // pwm_config_set_clkdiv_int_frac(&config, 38,3);
    pwm_config_set_clkdiv(&config, clkdiv);
    pwm_init(slice_num, &config, true);
 }
@@ -168,9 +170,51 @@ void vParseCommandTask() {
    }
 }
 
+unsigned long time = 0;
+const int delayTime = 500; // Half a second debounce
+
+int led_state = 0;
+uint16_t ledc[2] = {0xFF, 0};
+void gpio_callback(uint gpio, uint32_t events) {
+
+
+    if ((to_ms_since_boot(get_absolute_time())-time) > delayTime) {
+        // Recommend to not to change the position of this line
+        time = to_ms_since_boot(get_absolute_time());
+
+      if (led_state == 0) {
+         printf("Turning on LED265\n");
+         for(int i=0; i<LEN_LED_BANK; i++){
+            uint8_t lednum = i;
+            uint16_t ledctrl[2] = {lednum, 32000};
+            xQueueSendToFrontFromISR(pwmQueue, &ledctrl, 0);
+         }
+         led_state = 1;
+      } else if (led_state == 1) {
+         printf("Turning on LED280\n");
+         led_state = 2;
+      } else if (led_state == 2) {
+         printf("Turning on LED365\n");
+         led_state = 3;
+      } else if (led_state == 3) {
+         printf("Turning off LED\n");
+         for(int i=0; i<LEN_LED_BANK; i++){
+            pwm_output_off(LED_BANK[i]);
+         }
+         led_state = 0;
+      } else {
+         printf("Turning off LED\n");
+
+         led_state = 0;
+      }
+
+    }
+
+}
+
 void main() {
    // Initialize the Queue
-   pwmQueue =  xQueueCreate( 2, sizeof( uint16_t[2] ) );
+   pwmQueue =  xQueueCreate( 12, sizeof( uint16_t[2] ) );
    cmd_queue_init();
    // Set up our UART with the required speed.
    stdio_init_all();
@@ -180,15 +224,23 @@ void main() {
    init_uart();
 
    // Setup pin for PWM static
+
+   time = to_ms_since_boot(get_absolute_time());
    printf("Setting up pins\n");
    for (int i=0; i<LEN_LED_BANK; i++) {
       gpio_init(LED_BANK[i]);
       gpio_set_dir(LED_BANK[i], GPIO_OUT);
-      pwm_output_init(LED_BANK[i], 4.f, 32000);
+      pwm_output_init(LED_BANK[i], CLKDIV, 32000);
    }
    for (int i=0; i<LEN_LED_BANK; i++) {
       pwm_set_gpio_level(LED_BANK[i], 32000);
    }
+
+   // Add ISR for push button
+   gpio_init(28);
+   gpio_set_dir(28, GPIO_IN);
+   gpio_set_irq_enabled_with_callback(28, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
+
    // Create tasks
    printf("Creating tasks\n");
    // xTaskCreate(vBlinkTask, "Blink Task", 128, NULL, 2, NULL);
