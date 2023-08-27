@@ -22,7 +22,7 @@ pico_sdk_init()
 
 # Tell CMake where to find the executable source file
 add_executable(${PROJECT_NAME} 
-    src/servo_pwm.c
+    src/main.c
     src/uart.c
     src/pwm_control.c
     src/control_register.c

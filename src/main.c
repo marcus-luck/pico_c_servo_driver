@@ -42,6 +42,19 @@ int LED_BANK[] = {
    PWM_PIN7
    };
 
+
+// Setup pin for PWM static
+// Lets assume 2:4:2 in 3 banks.
+// bank 1: 2, 3,
+#define LEN_BANK1 2
+#define LEN_BANK2 4
+#define LEN_BANK3 2
+uint8_t bank1[2] = {PWM_PIN0, PWM_PIN1};
+// bank 2: 4, 5, 6, 7
+uint8_t bank2[4] = {PWM_PIN2, PWM_PIN3, PWM_PIN4, PWM_PIN5};
+// bank 3: 10, 11
+uint8_t bank3[2] = {PWM_PIN6, PWM_PIN7};
+
 // divider = Ceil(125000000/(4096*50))/16 = 611/16 = 38.1875
 #define CLKDIV (float)38.1875
 
@@ -137,6 +150,18 @@ void pwm_output_on(uint8_t pwm_pin) {
    // Set GPIO_BANK_enable to 1
 }
 
+void pwm_bank_on(uint8_t * bank, int len) {
+   for (int i=0; i<len; i++) {
+      pwm_output_on(bank[i]);
+   }
+}
+
+void pwm_bank_off(uint8_t * bank, int len) {
+   for (int i=0; i<len; i++) {
+      pwm_output_off(bank[i]);
+   }
+}
+
 void vParseCommandTask() {
    char cmd[4];
 
@@ -184,27 +209,33 @@ void gpio_callback(uint gpio, uint32_t events) {
 
       if (led_state == 0) {
          printf("Turning on LED265\n");
-         for(int i=0; i<LEN_LED_BANK; i++){
-            uint8_t lednum = i;
-            uint16_t ledctrl[2] = {lednum, 32000};
-            xQueueSendToFrontFromISR(pwmQueue, &ledctrl, 0);
-         }
+         pwm_bank_on(bank1, LEN_BANK1);
+         // for(int i=0; i<LEN_LED_BANK; i++){
+         //    uint8_t lednum = i;
+         //    uint16_t ledctrl[2] = {lednum, 32000};
+         //    xQueueSendToFrontFromISR(pwmQueue, &ledctrl, 0);
+         // }
          led_state = 1;
       } else if (led_state == 1) {
          printf("Turning on LED280\n");
+         pwm_bank_off(bank1, LEN_BANK1);
+         pwm_bank_on(bank2, LEN_BANK2);
          led_state = 2;
       } else if (led_state == 2) {
          printf("Turning on LED365\n");
+         pwm_bank_off(bank2, LEN_BANK2);
+         pwm_bank_on(bank3, LEN_BANK3);
          led_state = 3;
       } else if (led_state == 3) {
+         printf("Turning off LED\n");
+         pwm_bank_off(bank3, LEN_BANK3);
+
+         led_state = 0;
+      } else {
          printf("Turning off LED\n");
          for(int i=0; i<LEN_LED_BANK; i++){
             pwm_output_off(LED_BANK[i]);
          }
-         led_state = 0;
-      } else {
-         printf("Turning off LED\n");
-
          led_state = 0;
       }
 
@@ -223,8 +254,6 @@ void main() {
 
    init_uart();
 
-   // Setup pin for PWM static
-
    time = to_ms_since_boot(get_absolute_time());
    printf("Setting up pins\n");
    for (int i=0; i<LEN_LED_BANK; i++) {
@@ -232,6 +261,7 @@ void main() {
       gpio_set_dir(LED_BANK[i], GPIO_OUT);
       pwm_output_init(LED_BANK[i], CLKDIV, 32000);
    }
+
    for (int i=0; i<LEN_LED_BANK; i++) {
       pwm_set_gpio_level(LED_BANK[i], 32000);
    }
