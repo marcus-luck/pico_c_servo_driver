@@ -17,6 +17,14 @@ typedef enum {
     PWM5,
     PWM6,
     PWM7,
+    PWM0_,
+    PWM1_,
+    PWM2_,
+    PWM3_,
+    PWM4_,
+    PWM5_,
+    PWM6_,
+    PWM7_,
     INT_CODE,
     INT_VALUE,
     REG_MAX
@@ -24,6 +32,7 @@ typedef enum {
 
 void register_space_init(void);
 void read_ctrl_register(uint8_t reg, uint16_t * value);
+void read_ctrl_register_isr(uint8_t reg, uint16_t * value);
 void write_ctrl_register(uint8_t reg, uint16_t * value);
 
 #endif // CONTROL_REGISTER_H
