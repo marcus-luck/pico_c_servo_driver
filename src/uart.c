@@ -7,7 +7,7 @@
 #include "uart.h"
 
 
-#define QUEUE_LENGTH 2
+#define QUEUE_LENGTH 10
 #define QUEUE_ITEM_SIZE sizeof(char[4])
 #define QUEUE_TIMEOUT (TickType_t) 1
 
