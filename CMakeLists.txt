@@ -26,6 +26,7 @@ add_executable(${PROJECT_NAME}
     src/uart.c
     src/pwm_control.c
     src/control_register.c
+    src/debug_utils.c
 )
 
 # Create map/bin/hex/uf2 files
