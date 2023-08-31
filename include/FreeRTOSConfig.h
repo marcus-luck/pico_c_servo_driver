@@ -5,7 +5,7 @@
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
 #define configUSE_TICKLESS_IDLE                 1 /* Does nothing during idle, saves energy */
-#define configCPU_CLOCK_HZ                      ( ( TickType_t ) 133000000 ) /* Looking at runtime.c in the RPI 2040 SDK, the sys clock frequency is 125MHz */
+#define configCPU_CLOCK_HZ                      ( ( TickType_t ) 125000000 ) /* Looking at runtime.c in the RPI 2040 SDK, the sys clock frequency is 125MHz */
 #define configSYSTICK_CLOCK_HZ                  ( ( TickType_t ) 1000000 ) /* This is always 1MHz on ARM I think.... */
 #define configTICK_RATE_HZ                      ( ( TickType_t ) 1000 )      /* I personally like 1kHz so you can do 1 ms sleeps */
 #define configMAX_PRIORITIES                    32
