@@ -170,6 +170,143 @@ void pwm_bank_off(uint8_t * bank, int len) {
    }
 }
 
+/* State machine ************************************************************/
+_Bool is_on = 0;
+
+unsigned long time = 0;
+unsigned long button_debounce_time = 0;
+const int delayTime = 100; // Half a second debounce
+const int buttonDelayTime = 500; // Half a second debounce
+
+int led_state = 0;
+uint16_t ledc[2] = {0xFF, 0};
+
+volatile TimerHandle_t state_timer;
+
+void state_machine();
+void reset_state_machine();
+void stop_state_machine();
+void start_state_machine();
+void create_state_timer();
+
+/** Stop state machine
+ * @brief Stop the running statemachine, move the state to OFF
+ * 
+ */
+void stop_state_machine() {
+   if (is_on == 0) {
+      return;
+   };
+   // Stop the timer
+   // led_state = 4; // STATE_OFF;
+   xTimerStop(state_timer, 0);
+   // Turn off all LEDs
+   led_state = 4;  // STATE_OFF;
+   state_machine();
+   is_on = 0;
+}
+
+/** Start the state machine
+ * @brief Start the state machine
+ * 
+*/
+void start_state_machine() {
+   if (is_on == 1) {
+      return;
+   };
+   
+   // Start the timer
+   reset_state_machine();
+   if (state_timer != NULL) xTimerStart(state_timer, 0);
+   is_on = 1;
+}
+
+/** Reset the state machine
+ * @brief Reset the state machine
+ * 
+*/
+void reset_state_machine() {
+   if (is_on == 1) {
+      stop_state_machine();
+      led_state = 0; // STATE_LED1;
+      start_state_machine();
+   } else {
+      led_state = 0; // STATE_LED1;
+   }
+}
+
+void create_state_timer() {
+   state_timer = xTimerCreate(
+      "Timer",
+      pdMS_TO_TICKS(100),
+      pdTRUE,
+      NULL,
+      &state_machine
+   );
+}
+
+// void gpio_callback(uint gpio, uint32_t events) {
+void gpio_callback() {
+    if ((to_ms_since_boot(get_absolute_time()) - button_debounce_time) >= buttonDelayTime) {
+        // Recommend to not to change the position of this line
+        button_debounce_time = to_ms_since_boot(get_absolute_time());
+         if (is_on == 1) {
+            stop_state_machine();
+            // is_on = 0;
+         } else {
+            start_state_machine();
+            // is_on = 1;
+         }
+         // irq_clear(PWM_IRQ_WRAP);
+         // state_machine();
+    }
+
+   // irq_clear(PWM_IRQ_WRAP);
+}
+
+
+void state_machine() {
+   //  if ((to_ms_since_boot(get_absolute_time())-time) >= delayTime) {
+        // Recommend to not to change the position of this line
+      //   time = to_ms_since_boot(get_absolute_time());
+
+      if (led_state == 0) {
+         // printf("%d: Turning on LED265\n", time);
+         pwm_bank_on(bank1, LEN_BANK1);
+         led_state = 1;
+      } else if (led_state == 1) {
+         // printf("Turning on LED280\n");
+         pwm_bank_off(bank1, LEN_BANK1);
+         pwm_bank_on(bank2, LEN_BANK2);
+         led_state = 2;
+      } else if (led_state == 2) {
+         // printf("Turning on LED365\n");
+         pwm_bank_off(bank2, LEN_BANK2);
+         pwm_bank_on(bank3, LEN_BANK3);
+         led_state = 3;
+      } else if (led_state == 3) {
+         // printf("Turning off LED\n");
+         pwm_bank_off(bank3, LEN_BANK3);
+
+         led_state = 0;
+      } else if (led_state == 4) {
+         printf("Turning off LED\n");
+         // Off state, the statemachine remains off until reset.
+         pwm_bank_off(bank1, LEN_BANK1);
+         pwm_bank_off(bank2, LEN_BANK2);
+         pwm_bank_off(bank3, LEN_BANK3);
+         led_state = 4;
+      } else {
+         printf("Turning off LED\n");
+         for(int i=0; i<LEN_LED_BANK; i++){
+            pwm_output_off(LED_BANK[i]);
+         }
+         led_state = 0;
+      }
+   // }
+}
+
+/* END State machine ****************************************************** */
 void vParseCommandTask() {
    char cmd[4];
 
@@ -204,57 +341,8 @@ void vParseCommandTask() {
 }
 
 
-// void gpio_callback(uint gpio, uint32_t events) {
-void gpio_callback() {
-   irq_clear(PWM_IRQ_WRAP);
-   state_machine();
-
-   // irq_clear(PWM_IRQ_WRAP);
-}
-
-unsigned long time = 0;
-const int delayTime = 100; // Half a second debounce
-
-int led_state = 0;
-uint16_t ledc[2] = {0xFF, 0};
-void state_machine() {
-    if ((to_ms_since_boot(get_absolute_time())-time) >= delayTime) {
-        // Recommend to not to change the position of this line
-        time = to_ms_since_boot(get_absolute_time());
-
-      if (led_state == 0) {
-         // printf("%d: Turning on LED265\n", time);
-         pwm_bank_on(bank1, LEN_BANK1);
-         led_state = 1;
-      } else if (led_state == 1) {
-         // printf("Turning on LED280\n");
-         pwm_bank_off(bank1, LEN_BANK1);
-         pwm_bank_on(bank2, LEN_BANK2);
-         led_state = 2;
-      } else if (led_state == 2) {
-         // printf("Turning on LED365\n");
-         pwm_bank_off(bank2, LEN_BANK2);
-         pwm_bank_on(bank3, LEN_BANK3);
-         led_state = 3;
-      } else if (led_state == 3) {
-         // printf("Turning off LED\n");
-         pwm_bank_off(bank3, LEN_BANK3);
-
-         led_state = 0;
-      } else {
-         printf("Turning off LED\n");
-         for(int i=0; i<LEN_LED_BANK; i++){
-            pwm_output_off(LED_BANK[i]);
-         }
-         led_state = 0;
-      }
-
-    }
-
-}
-
 // Misc
-volatile TimerHandle_t state_timer;
+
 
 void main() {
    // Initialize the Queue
@@ -284,22 +372,18 @@ void main() {
    }
 
    // Add ISR for push button
-   // gpio_init(28);
-   // gpio_set_dir(28, GPIO_IN);
-   // gpio_set_irq_enabled_with_callback(28, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
+   gpio_init(28);
+   gpio_set_dir(28, GPIO_IN);
+   gpio_set_irq_enabled_with_callback(28, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
 
    // Create tasks
    printf("Creating tasks\n");
-   state_timer = xTimerCreate(
-      "Timer",
-      pdMS_TO_TICKS(100),
-      pdTRUE,
-      NULL,
-      &state_machine
-   );
+   create_state_timer();
+
    xTaskCreate(vRunPWMTask, "Run PWM Task", 256, NULL, 5, NULL);
    xTaskCreate(vParseCommandTask, "Parser Task", 256, NULL, 4, NULL);
-   if (state_timer != NULL) xTimerStart(state_timer, 0);
+   start_state_machine();
+
    vTaskStartScheduler();
    // The code will neverreach this point unless something is wrong
     while (1)
