@@ -38,6 +38,21 @@ void read_ctrl_register(uint8_t reg, uint16_t * value) {
     xSemaphoreGive(register_mutexes[reg]);
 }
 
+/** Read ctrl register from an ISR
+ * @brief Reads the value from the specified register.
+ * 
+ * The function takes the mutex associated with the register, reads its value,
+ * and then releases the mutex.
+ * 
+ * @param reg The register index.
+ * @param value Pointer to store the read value.
+ */
+void read_ctrl_register_isr(uint8_t reg, uint16_t * value) {
+    xSemaphoreTakeFromISR(register_mutexes[reg], NULL);
+    *value = registers[reg];
+    xSemaphoreGiveFromISR(register_mutexes[reg], NULL);
+}
+
 /**
  * @brief Writes a value to the specified register.
  * 
