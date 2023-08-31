@@ -11,6 +11,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
+#include "timers.h"
 #include <stdio.h>
 #include "pico/time.h"
 #include "hardware/irq.h"
@@ -120,6 +121,7 @@ void vRunPWMTask() {
          led_id = ledctrl[0] + 1;
          pval = ledctrl[1];
          // read_ctrl_register(led_id, &pwm_val);
+         printf("Setting LED %i to %i\n", led_id, pval);
          write_ctrl_register(led_id, &pval);
          // if (led_id == 0xFF) {
          //    for (int i=0; i<LEN_LED_BANK; i++) {
@@ -201,39 +203,41 @@ void vParseCommandTask() {
    }
 }
 
+
+// void gpio_callback(uint gpio, uint32_t events) {
+void gpio_callback() {
+   irq_clear(PWM_IRQ_WRAP);
+   state_machine();
+
+   // irq_clear(PWM_IRQ_WRAP);
+}
+
 unsigned long time = 0;
 const int delayTime = 100; // Half a second debounce
 
 int led_state = 0;
 uint16_t ledc[2] = {0xFF, 0};
-// void gpio_callback(uint gpio, uint32_t events) {
-void gpio_callback() {
-
+void state_machine() {
     if ((to_ms_since_boot(get_absolute_time())-time) >= delayTime) {
         // Recommend to not to change the position of this line
         time = to_ms_since_boot(get_absolute_time());
 
       if (led_state == 0) {
-         printf("%d: Turning on LED265\n", time);
+         // printf("%d: Turning on LED265\n", time);
          pwm_bank_on(bank1, LEN_BANK1);
-         // for(int i=0; i<LEN_LED_BANK; i++){
-         //    uint8_t lednum = i;
-         //    uint16_t ledctrl[2] = {lednum, 32000};
-         //    xQueueSendToFrontFromISR(pwmQueue, &ledctrl, 0);
-         // }
          led_state = 1;
       } else if (led_state == 1) {
-         printf("Turning on LED280\n");
+         // printf("Turning on LED280\n");
          pwm_bank_off(bank1, LEN_BANK1);
          pwm_bank_on(bank2, LEN_BANK2);
          led_state = 2;
       } else if (led_state == 2) {
-         printf("Turning on LED365\n");
+         // printf("Turning on LED365\n");
          pwm_bank_off(bank2, LEN_BANK2);
          pwm_bank_on(bank3, LEN_BANK3);
          led_state = 3;
       } else if (led_state == 3) {
-         printf("Turning off LED\n");
+         // printf("Turning off LED\n");
          pwm_bank_off(bank3, LEN_BANK3);
 
          led_state = 0;
@@ -249,6 +253,9 @@ void gpio_callback() {
 
 }
 
+// Misc
+volatile TimerHandle_t state_timer;
+
 void main() {
    // Initialize the Queue
    pwmQueue =  xQueueCreate( 12, sizeof( uint16_t[2] ) );
@@ -257,6 +264,8 @@ void main() {
    stdio_init_all();
    register_space_init();
    printf("#### Starting program ####\n");
+
+   // measure_freqs();
 
    init_uart();
 
@@ -274,17 +283,6 @@ void main() {
       pwm_set_gpio_level(LED_BANK[i], 0);
    }
 
-   // Lets try a PWM to trigger the callback
-   // It'll run at 1 Hz, well use SYNC one and a counter
-   pwm_config config = pwm_get_default_config();
-   gpio_set_function(26, GPIO_FUNC_PWM);
-   uint slice_num = pwm_gpio_to_slice_num(26);
-   pwm_config_set_clkdiv(&config, SYNC1);
-   pwm_init(26, &config, true);
-   irq_set_exclusive_handler(PWM_IRQ_WRAP, gpio_callback);
-   pwm_set_irq_enabled(slice_num, true);
-   irq_set_enabled(PWM_IRQ_WRAP, true);
-
    // Add ISR for push button
    // gpio_init(28);
    // gpio_set_dir(28, GPIO_IN);
@@ -292,9 +290,16 @@ void main() {
 
    // Create tasks
    printf("Creating tasks\n");
+   state_timer = xTimerCreate(
+      "Timer",
+      pdMS_TO_TICKS(100),
+      pdTRUE,
+      NULL,
+      &state_machine
+   );
    xTaskCreate(vRunPWMTask, "Run PWM Task", 256, NULL, 5, NULL);
    xTaskCreate(vParseCommandTask, "Parser Task", 256, NULL, 4, NULL);
-
+   if (state_timer != NULL) xTimerStart(state_timer, 0);
    vTaskStartScheduler();
    // The code will neverreach this point unless something is wrong
     while (1)
