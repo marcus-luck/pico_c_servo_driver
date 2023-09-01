@@ -61,6 +61,7 @@ uint8_t bank3[2] = {PWM_PIN6, PWM_PIN7};
 // divider = Ceil(125000000/(4096*10))/16 = 611/16 = 190.75
 #define SYNC1 (float)190.75 // 10 Hz
 
+
 QueueHandle_t pwmQueue;
 uint16_t pwm_val = 0;
 
@@ -120,29 +121,31 @@ void vRunPWMTask() {
       if (xQueueReceive(pwmQueue, &ledctrl, portMAX_DELAY) == pdTRUE) {
          led_id = ledctrl[0] + 1;
          pval = ledctrl[1];
-         // read_ctrl_register(led_id, &pwm_val);
+
          printf("Setting LED %i to %i\n", led_id, pval);
          write_ctrl_register(led_id, &pval);
-         // if (led_id == 0xFF) {
-         //    for (int i=0; i<LEN_LED_BANK; i++) {
-         //       pwm_set_gpio_level(LED_BANK[i], pwm_val);
-         //    }
-         // } else {
-         //    pwm_set_gpio_level(LED_BANK[led_id], pwm_val);
-         // }
+
       }
    }
 }
 
 
-void pwm_output_init(int pwm_pin, float clkdiv, int level) {
-   gpio_set_function(pwm_pin, GPIO_FUNC_PWM);
+void set_pwm_frequency(int pwm_pin, uint16_t top, float clkdiv) {
    uint slice_num = pwm_gpio_to_slice_num(pwm_pin);
    pwm_config config = pwm_get_default_config();
+   config.div = clkdiv;
+   config.top = top;
    pwm_config_set_clkdiv(&config, clkdiv);
+   pwm_set_wrap(slice_num, top);
    pwm_init(slice_num, &config, true);
+
+   pwm_set_enabled(slice_num, true);
 }
 
+void pwm_output_init(int pwm_pin, uint16_t top, float clkdiv) {
+   gpio_set_function(pwm_pin, GPIO_FUNC_PWM);
+   set_pwm_frequency(pwm_pin, top, clkdiv);
+}
 
 void pwm_output_off(uint8_t pwm_pin) {
 
@@ -360,15 +363,16 @@ void main() {
    time = to_ms_since_boot(get_absolute_time());
    printf("Setting up pins\n");
    for (int i=0; i<LEN_LED_BANK; i++) {
-      gpio_init(LED_BANK[i]);
-      gpio_set_dir(LED_BANK[i], GPIO_OUT);
-      pwm_output_init(LED_BANK[i], CLKDIV, 0);
+      // gpio_init(LED_BANK[i]);
+      // gpio_set_dir(LED_BANK[i], GPIO_OUT);
+      pwm_output_init(LED_BANK[i], (uint16_t)12500, (float)1.0 ); //CLKDIV, 0);
    }
 
-   u_int16_t defval = 25000;
+   u_int16_t defval = 5000;
    for (int i=0; i<LEN_LED_BANK; i++) {
       write_ctrl_register(LED_BANK[i], &defval);
       pwm_set_gpio_level(LED_BANK[i], 0);
+      
    }
 
    // Add ISR for push button
