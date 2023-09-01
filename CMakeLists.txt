@@ -24,7 +24,6 @@ pico_sdk_init()
 add_executable(${PROJECT_NAME} 
     src/main.c
     src/uart.c
-    src/pwm_control.c
     src/control_register.c
     src/debug_utils.c
 )
